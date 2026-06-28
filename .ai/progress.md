@@ -1,0 +1,174 @@
+# PHP-Sage 项目进度
+
+## 项目定位
+独立 RAG 问答系统，针对 PHP 生产问题知识库。
+复用 langgraph_agent 的 venv311 环境（模型已下载）。
+
+## 项目路径
+/home/fanyl/www/case/php-sage
+
+## 技术栈
+- Python 3.10 + venv311（路径：/home/fanyl/www/case/agent/langgraph_agent/venv311）
+- Qdrant（本地文件模式，路径：data/qdrant/）
+- Embedding：BAAI/bge-small-zh-v1.5（512维）
+- Reranker：BAAI/bge-reranker-base（CrossEncoder）
+- BM25：rank-bm25 + jieba 中文分词
+- FastAPI + uvicorn
+- LLM：阿里云 DashScope / qwen-plus（OpenAI 兼容接口）
+
+## 项目结构
+```
+php-sage/
+├── app/
+│   ├── core/
+│   │   ├── config.py        # 配置（路径、模型、chunk参数、LLM配置）
+│   │   ├── llm.py           # LLM 封装（ask普通 / ask_stream流式）
+│   │   ├── prompt.py        # Prompt 构建（RAG上下文拼装 + 多轮历史）
+│   │   └── intent.py        # 意图识别（规则+LLM两阶段）[Day4新增]
+│   ├── ingestion/
+│   │   ├── loader.py        # 读取 docs/ 下所有 .md 文件
+│   │   └── indexer.py       # 切块 + 写入 Qdrant
+│   ├── retrieval/
+│   │   └── searcher.py      # 向量+BM25+Rerank 混合检索
+│   └── api/
+│       └── router.py        # POST /ask + GET /ask/stream + session管理接口
+├── docs/                    # 5个PHP生产问题md文档
+├── scripts/
+│   ├── ingest.py            # 一键摄入脚本
+│   ├── test_search.py       # 召回效果测试脚本
+│   └── test_day4.py         # Day4 多轮+意图测试脚本 [Day4新增]
+├── data/qdrant/             # Qdrant 本地存储
+└── main.py                  # FastAPI 启动入口
+```
+
+## 当前配置（app/core/config.py）
+- CHUNK_SIZE = 500
+- CHUNK_OVERLAP = 50
+- RETRIEVAL_TOP_K = 5
+- RERANK_TOP_K = 3
+- RERANK_THRESHOLD = 0.1
+- LLM_MODEL = qwen-plus
+- LLM_TEMPERATURE = 0.3
+- LLM_MAX_TOKENS = 1024
+
+## 已完成（Day1）
+- [x] LangGraph + RAG 链路跑通
+
+## 已完成（Day2）
+- [x] 项目结构搭建
+- [x] 5个docs文档摄入Qdrant
+- [x] 召回效果验证（5个问题全部命中正确文档）
+- [x] FastAPI POST /ask 接口（返回chunks）
+- [x] 逐行打印理解了完整链路：loader→indexer→searcher→router
+
+## 已完成（Day3）
+- [x] config.py 增加 LLM 配置（复用 langgraph_agent 的阿里云 DashScope）
+- [x] app/core/llm.py：ask()普通调用 + ask_stream()流式调用
+- [x] app/core/prompt.py：build_messages() 构建RAG prompt
+- [x] POST /ask 升级：chunk → prompt → LLM → 返回真实 answer + sources
+- [x] GET /ask/stream：SSE流式接口，打字机效果，逐token推送
+- [x] curl 端到端验证（普通接口 + SSE流式接口均通过）
+
+## 已完成（Day4）
+- [x] app/core/intent.py：意图识别，规则优先+LLM兜底两阶段
+  - rag_query：PHP技术问题 → 走RAG链路
+  - chitchat：闲聊 → 直接LLM友好回复
+  - out_of_scope：越界话题 → 礼貌拒绝
+- [x] prompt.py 升级：build_messages() 支持 history 参数（多轮历史注入）
+- [x] prompt.py 新增：build_chitchat_messages()（闲聊专用prompt）
+- [x] router.py 升级：
+  - 修复 Day3 遗留 bug（return None, None）
+  - 接入意图识别分流（三路分发）
+  - 内存级 session store（MAX_HISTORY=6条）
+  - POST /ask 支持 session_id + history 字段
+  - GET /ask/stream 支持 session_id，流结束后写入历史
+  - DELETE /session/{id}：清除session
+  - GET /session/{id}/history：查看历史（调试用）
+- [x] llm.py 清理调试print，保持干净
+- [x] scripts/test_day4.py：6组测试验证意图分类和多轮对话
+
+## Day4 核心概念理解
+### 意图识别两阶段设计
+```
+query
+  ↓
+规则快速判断（0延迟，覆盖80%）
+  ↓ 命中 → 直接返回
+  ↓ 未命中
+LLM分类（精准，处理模糊边界）
+  ↓
+intent: rag_query / chitchat / out_of_scope
+```
+
+### 多轮对话 messages 结构
+```python
+[
+  {"role": "system",    "content": SYSTEM_PROMPT},
+  {"role": "user",      "content": "上轮问题"},      # history[0]
+  {"role": "assistant", "content": "上轮回答"},      # history[1]
+  {"role": "user",      "content": "RAG上下文+当前问题"},  # 当前轮
+]
+```
+
+### Session 管理要点
+- 内存级 dict，key=session_id，value=最近MAX_HISTORY条消息
+- 流式接口：generator 结束后才写入 session（避免写入时序问题）
+- 每轮 RAG 重新检索（不复用上轮chunks），防上下文漂移
+
+## 启动方式
+```bash
+cd /home/fanyl/www/case/php-sage
+/home/fanyl/www/case/agent/langgraph_agent/venv311/bin/python main.py
+```
+
+## 接口说明
+
+### POST /ask（普通，多轮，含意图识别）
+```bash
+# 第一轮
+curl -X POST http://localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"query": "PHP连接MySQL超时怎么排查？", "session_id": "user_001"}'
+
+# 第二轮（服务端自动读取 user_001 的历史）
+curl -X POST http://localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"query": "刚才说的第一步是什么？", "session_id": "user_001"}'
+```
+
+### GET /ask/stream（SSE流式，支持session）
+```bash
+curl -N --get http://localhost:8000/ask/stream \
+  --data-urlencode "query=PHP内存溢出如何处理" \
+  --data-urlencode "session_id=user_001"
+```
+
+### 会话管理
+```bash
+# 查看历史
+curl http://localhost:8000/session/user_001/history
+
+# 清除历史
+curl -X DELETE http://localhost:8000/session/user_001
+```
+
+## RAG 完整链路（Day4 最终版）
+```
+用户问题 query + session_id
+    ↓
+intent.detect_intent()
+  规则判断 → 命中直接分流
+  LLM判断  → 模糊情况
+    ↓
+┌─────────────────┬──────────────────┬──────────────────┐
+│  rag_query      │  chitchat        │  out_of_scope    │
+│  召回chunks     │  直接LLM         │  固定拒绝回复    │
+│  +session历史   │  +session历史    │                  │
+│  → build_msg    │  → build_chitchat│                  │
+│  → ask()/stream │  → ask()/stream  │                  │
+└─────────────────┴──────────────────┴──────────────────┘
+    ↓
+更新 session 历史
+    ↓
+返回 {query, answer, sources, intent}
+```

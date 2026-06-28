@@ -1,0 +1,10 @@
+qdrant-client
+langchain-huggingface
+langchain-qdrant
+langchain-text-splitters
+sentence-transformers
+rank-bm25
+jieba
+fastapi
+uvicorn
+python-dotenv
