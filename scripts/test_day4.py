@@ -1,19 +1,8 @@
 #!/usr/bin/env python3
 """
 test_day4.py - Day4 多轮对话 + 意图识别 验证脚本
-
-测试点：
-  1. 意图识别：rag_query / chitchat / out_of_scope 三类
-  2. 多轮对话：第二轮问题依赖第一轮上下文
-  3. session 隔离：不同 session_id 不干扰
-  4. session 清除接口
-  5. stream 接口带 session_id
-
-用法：
-  服务先启动：python main.py
-  再运行：python scripts/test_day4.py
+用法：先启动服务 python main.py，再运行 python scripts/test_day4.py
 """
-import json
 import requests
 
 BASE = "http://localhost:8000"
@@ -66,34 +55,28 @@ if __name__ == "__main__":
     print("Day4 测试：意图识别 + 多轮对话")
     print("=" * 60)
 
-    # ── 测试1：意图识别 ─────────────────────────────────────────────
     print("\n── 测试1：意图识别三分类 ──")
-    ask("PHP 连接 MySQL 超时怎么排查？", "s1")       # 期望：rag_query
-    ask("你好！", "s1")                              # 期望：chitchat
-    ask("你是谁？", "s1")                            # 期望：chitchat
-    ask("今天天气怎么样？", "s1")                    # 期望：out_of_scope
-    ask("帮我写首诗", "s1")                          # 期望：out_of_scope
+    ask("PHP 连接 MySQL 超时怎么排查？", "s1")   # 期望：rag_query
+    ask("你好！", "s1")                          # 期望：chitchat
+    ask("你是谁？", "s1")                        # 期望：chitchat
+    ask("今天天气怎么样？", "s1")                # 期望：out_of_scope
+    ask("帮我写首诗", "s1")                      # 期望：out_of_scope
 
-    # ── 测试2：多轮对话（同 session）───────────────────────────────
     print("\n── 测试2：多轮对话 ──")
     ask("PHP 内存溢出怎么处理？", "s2")
-    ask("刚才说的第一步是什么？", "s2")             # 依赖上轮答案
-    ask("如果是 PHP-FPM 配置导致的呢？", "s2")      # 追问
+    ask("刚才说的第一步是什么？", "s2")          # 依赖上轮答案
+    ask("如果是 PHP-FPM 配置导致的呢？", "s2")   # 追问
 
-    # ── 测试3：查看 session 历史 ────────────────────────────────────
     print("\n── 测试3：查看 session 历史 ──")
     get_history("s2")
 
-    # ── 测试4：session 隔离 ─────────────────────────────────────────
-    print("\n── 测试4：session 隔离（s3 不应知道 s2 的历史）──")
-    ask("刚才说的第一步是什么？", "s3")             # s3 没有历史，应回答不知道
+    print("\n── 测试4：session 隔离 ──")
+    ask("刚才说的第一步是什么？", "s3")          # s3 无历史，应答不知道
 
-    # ── 测试5：清除 session ─────────────────────────────────────────
     print("\n── 测试5：清除 session ──")
     clear_session("s2")
-    get_history("s2")  # 应该为空
+    get_history("s2")                            # 应该为空
 
-    # ── 测试6：流式接口 + session ───────────────────────────────────
     print("\n── 测试6：流式接口 ──")
     stream_ask("Nginx 502 错误怎么排查？", "s_stream")
 

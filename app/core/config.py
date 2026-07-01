@@ -11,6 +11,9 @@ DOCS_DIR = BASE_DIR / "docs"
 QDRANT_PATH = str(BASE_DIR / "data" / "qdrant")
 QDRANT_COLLECTION = "php_sage"
 
+# 文档指纹文件，用来记录每个 md 文件上次摄入时的 hash
+MANIFEST_PATH = BASE_DIR / "data" / "manifest.json"
+
 # 复用 langgraph_agent 已下载的模型，避免重复下载
 EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
 RERANKER_MODEL = "BAAI/bge-reranker-base"

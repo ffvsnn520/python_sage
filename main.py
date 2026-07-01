@@ -7,12 +7,22 @@ main.py - FastAPI 启动入口
   uvicorn main:app --reload --port 8000
 """
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+import logging
+import time
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from app.ingestion.loader import load_docs
 from app.ingestion.indexer import build_index
 from app.retrieval.searcher import Searcher
 from app.api.router import router
+from app.core.logging import setup_logging
+
+
+setup_logging()
+logger = logging.getLogger("php_sage.main")
 
 
 # lifespan：应用启动时初始化，关闭时清理
@@ -20,19 +30,21 @@ from app.api.router import router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时执行
-    print("正在初始化知识库...")
+    logger.info("正在初始化知识库...")
     docs = load_docs()
     vectorstore, chunks = build_index(docs)
     searcher = Searcher(vectorstore, chunks)
 
     # 把 searcher 挂到 app.state，路由里可以取到
     app.state.searcher = searcher
-    print("知识库初始化完成，服务就绪")
+    app.state.ready = True
+    logger.info("知识库初始化完成，服务就绪，文档块数量=%s", len(chunks))
 
     yield  # 服务运行中
 
     # 关闭时执行（清理资源）
-    print("服务关闭")
+    app.state.ready = False
+    logger.info("服务关闭")
 
 
 app = FastAPI(
@@ -43,12 +55,66 @@ app = FastAPI(
 )
 
 
+# 记录每个请求的状态码和耗时，排查线上问题时优先看这里。
+@app.middleware("http")
+async def request_log_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    cost_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "%s %s -> %s %.2fms",
+        request.method,
+        request.url.path,
+        response.status_code,
+        cost_ms,
+    )
+    return response
+
+
 # 把 searcher 从 app.state 注入到路由
 # 每个请求进来时自动执行
 @app.middleware("http")
 async def inject_searcher(request: Request, call_next):
-    request.state.searcher = request.app.state.searcher
+    request.state.searcher = getattr(request.app.state, "searcher", None)
     return await call_next(request)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    logger.warning("HTTP错误: %s %s -> %s %s", request.method, request.url.path, exc.status_code, exc.detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "error": {"code": exc.status_code, "message": exc.detail}},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning("参数校验失败: %s %s -> %s", request.method, request.url.path, exc.errors())
+    return JSONResponse(
+        status_code=422,
+        content={"success": False, "error": {"code": 422, "message": "请求参数不合法", "details": exc.errors()}},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("未处理异常: %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "error": {"code": 500, "message": "服务内部错误，请稍后重试"}},
+    )
+
+
+@app.get("/health")
+async def health_check():
+    ready = bool(getattr(app.state, "ready", False)) and getattr(app.state, "searcher", None) is not None
+    return {
+        "status": "ok" if ready else "not_ready",
+        "service": "PHP-Sage",
+        "version": app.version,
+        "ready": ready,
+    }
 
 
 # 注册路由

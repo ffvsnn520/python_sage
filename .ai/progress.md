@@ -24,7 +24,8 @@ php-sage/
 │   │   ├── config.py        # 配置（路径、模型、chunk参数、LLM配置）
 │   │   ├── llm.py           # LLM 封装（ask普通 / ask_stream流式）
 │   │   ├── prompt.py        # Prompt 构建（RAG上下文拼装 + 多轮历史）
-│   │   └── intent.py        # 意图识别（规则+LLM两阶段）[Day4新增]
+│   │   ├── intent.py        # 意图识别（规则+LLM两阶段）[Day4新增]
+│   │   └── logging.py       # 日志配置 [Day5新增]
 │   ├── ingestion/
 │   │   ├── loader.py        # 读取 docs/ 下所有 .md 文件
 │   │   └── indexer.py       # 切块 + 写入 Qdrant
@@ -36,7 +37,8 @@ php-sage/
 ├── scripts/
 │   ├── ingest.py            # 一键摄入脚本
 │   ├── test_search.py       # 召回效果测试脚本
-│   └── test_day4.py         # Day4 多轮+意图测试脚本 [Day4新增]
+│   ├── test_day4.py         # Day4 多轮+意图测试脚本 [Day4新增]
+│   └── test_day5.py         # Day5 服务化测试脚本 [Day5新增]
 ├── data/qdrant/             # Qdrant 本地存储
 └── main.py                  # FastAPI 启动入口
 ```
@@ -87,6 +89,20 @@ php-sage/
 - [x] llm.py 清理调试print，保持干净
 - [x] scripts/test_day4.py：6组测试验证意图分类和多轮对话
 
+## 已完成（Day5）
+- [x] app/core/logging.py：新增统一日志配置，输出时间、级别、模块名、消息
+- [x] main.py：启动初始化日志从 print 升级为 logger.info
+- [x] main.py：新增请求日志 middleware，记录 method、path、status_code、耗时
+- [x] main.py：新增全局 HTTPException 处理，统一返回 success=false + error
+- [x] main.py：新增 RequestValidationError 处理，参数错误统一返回 422
+- [x] main.py：新增 Exception 兜底处理，未知异常返回 500 并记录堆栈
+- [x] main.py：新增 GET /health 健康检查，返回服务名、版本、ready 状态
+- [x] router.py：意图识别 print 改为 logger.info
+- [x] router.py：RAG 链路增加知识库未就绪保护，返回 503
+- [x] router.py：AskRequest.history 改为 Field(default_factory=list)
+- [x] app/core/intent.py：清理误混入的邮箱文本，修复启动导入时报 NameError 的问题
+- [x] scripts/test_day5.py：验证 /health、空 query 400、参数错误 422、session history
+
 ## Day4 核心概念理解
 ### 意图识别两阶段设计
 ```
@@ -114,6 +130,39 @@ intent: rag_query / chitchat / out_of_scope
 - 内存级 dict，key=session_id，value=最近MAX_HISTORY条消息
 - 流式接口：generator 结束后才写入 session（避免写入时序问题）
 - 每轮 RAG 重新检索（不复用上轮chunks），防上下文漂移
+
+## Day5 核心概念理解
+### FastAPI 服务化分层
+```
+请求进入
+  ↓
+middleware：记录请求耗时
+  ↓
+router：执行业务逻辑
+  ↓
+exception handler：把错误统一变成 JSON
+  ↓
+返回响应
+```
+
+### 错误类型
+- 400：业务参数不合法，例如 query 为空
+- 422：请求结构不合法，例如缺少 query 字段
+- 503：服务暂时不可用，例如知识库尚未初始化完成
+- 500：未知异常，服务端记录堆栈，对用户返回统一提示
+
+### 健康检查
+```bash
+curl http://localhost:8000/health
+```
+返回 ready=true 表示知识库已经加载，服务可以接收问答请求。
+
+## 后续学习方式
+- 从 Day6 开始采用“半独立练习”节奏：先讲业务目标，再写 5-10 行核心代码，逐行解释 Python 语法和业务作用。
+- 每遇到不熟的 Python 写法，都回答三个问题：这是 Python 自带的吗？输入输出是什么？当前代码里为什么要用？
+- 优先补项目够用型 Python：字符串方法、列表、字典、Path 文件操作、函数、异常。
+- 学习任务不追求一次独立写完整模块，先做到能读懂、能解释、能修改已有函数、能自己写 10-20 行小函数。
+- Day6 建议让学习者亲自参与的小函数：calculate_file_hash(path)、load_manifest()、save_manifest(data)、is_doc_changed(path, manifest)。
 
 ## 启动方式
 ```bash
@@ -150,6 +199,16 @@ curl http://localhost:8000/session/user_001/history
 
 # 清除历史
 curl -X DELETE http://localhost:8000/session/user_001
+```
+
+### 健康检查（Day5新增）
+```bash
+curl http://localhost:8000/health
+```
+
+### Day5 服务化测试
+```bash
+/home/fanyl/www/case/agent/langgraph_agent/venv311/bin/python scripts/test_day5.py
 ```
 
 ## RAG 完整链路（Day4 最终版）

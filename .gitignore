@@ -3,5 +3,7 @@ venv*/
 __pycache__/
 *.pyc
 data/qdrant/
+data/manifest.json
 .DS_Store
 tmp
+app\core\config.py
