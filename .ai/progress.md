@@ -163,6 +163,51 @@ curl http://localhost:8000/health
 - 优先补项目够用型 Python：字符串方法、列表、字典、Path 文件操作、函数、异常。
 - 学习任务不追求一次独立写完整模块，先做到能读懂、能解释、能修改已有函数、能自己写 10-20 行小函数。
 - Day6 建议让学习者亲自参与的小函数：calculate_file_hash(path)、load_manifest()、save_manifest(data)、is_doc_changed(path, manifest)。
+- 从 Day7 开始增加“知识债记录”规则：当前阶段只学最小可用版本时，必须把未展开的主流进阶内容记录下来，并标注建议补学时机。
+- 后续每个学习日都要区分当前必学和暂缓进阶，避免只完成基础功能后遗漏完整知识体系。
+
+## Day7 学习计划：评估指标量化
+
+### 当前阶段先学
+- 评估集：固定测试问题 + 期望命中文档，用来让检索效果可重复验证。
+- Hit@K：前 K 个检索结果里是否包含正确文档。
+- MRR：正确文档排得越靠前，分数越高。
+- 最小检索评估：先评估 searcher.search() 返回的 sources，不先评估 LLM 答案。
+
+### Day7 最小评估集
+- PHP 连接 MySQL 超时怎么排查？ → pdo-connection-timeout.md
+- SQLSTATE HY000 2002 Connection timed out 是什么问题？ → pdo-connection-timeout.md
+- Nginx 502 Bad Gateway 怎么解决？ → nginx-php-502.md
+- PHP-FPM 没启动导致 502 怎么查？ → nginx-php-502.md
+- PHP session 登录后突然失效怎么办？ → session-not-working.md
+- 多台服务器 session 丢失怎么解决？ → session-not-working.md
+- PHP 导出 Excel 内存溢出怎么办？ → memory-exhausted-export.md
+- Allowed memory size exhausted 怎么处理？ → memory-exhausted-export.md
+- MySQL 慢查询怎么优化？ → mysql-slow-query.md
+- 接口查询超时，SQL 很慢怎么排查？ → mysql-slow-query.md
+
+### Day7 暂缓进阶，后续补齐
+- Recall@K / Precision@K：更完整地评估召回覆盖率和结果纯度。
+- nDCG：适合多等级相关性的排序质量评估。
+- Answer Correctness：评估最终答案是否正确。
+- Faithfulness / Groundedness：评估答案是否忠于知识库上下文，是否幻觉。
+- Context Relevance：评估召回内容是否真的和问题相关。
+- LLM-as-a-Judge：用大模型辅助批量评价答案。
+- RAGAS / DeepEval / LangSmith Evaluation / LlamaIndex Eval：成熟 RAG 评估框架。
+
+### 建议补学时机
+- Day11 冷启动 + 兜底策略：补 Context Relevance、无答案/低置信度场景评估。
+- Day12 性能优化：补 Precision@K、nDCG，用指标比较 chunk、top_k、rerank threshold。
+- Day14 监控 + 反馈闭环：补 Answer Correctness、Faithfulness、LLM-as-a-Judge、RAGAS/DeepEval 等框架。
+
+### Day7 当前进度
+- [x] 新增 scripts/test_day7_eval.py，复用现有 load_docs、load_existing_index、Searcher。
+- [x] 构造 10 条最小检索评估集，每条包含 query 和 expected_source。
+- [x] 实现 find_rank()：查找期望文档在 sources 中的排名，使用 1-based rank。
+- [x] 实现 hit_at_k()：rank <= k 记为 1，否则记为 0。
+- [x] 实现 reciprocal_rank()：命中第 n 名得 1/n，未命中得 0。
+- [x] 跑通当前基准：cases=10，Hit@1=1.0000，Hit@3=1.0000，MRR=1.0000。
+- [ ] 后续需要解释：为什么 sources 里可能出现同一文档多次，因为检索返回的是 chunk，不是文档；当前脚本按第一次出现的位置计算文档 rank。
 
 ## 启动方式
 ```bash
