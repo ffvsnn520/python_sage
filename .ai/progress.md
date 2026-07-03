@@ -211,6 +211,64 @@ curl http://localhost:8000/health
 /home/fanyl/www/case/agent/langgraph_agent/venv311/bin/python scripts/test_day5.py
 ```
 
+### Day6 增量摄入测试
+```bash
+# 检查 manifest 变化判断
+/home/fanyl/www/case/agent/langgraph_agent/venv311/bin/python scripts/test_manifest.py
+
+# 第一次初始化：全量写入 Qdrant，并保存 manifest
+/home/fanyl/www/case/agent/langgraph_agent/venv311/bin/python scripts/ingest.py
+
+# 后续更新：只处理变化过的 md 文件
+/home/fanyl/www/case/agent/langgraph_agent/venv311/bin/python scripts/ingest_incremental.py
+```
+
+## Day6 核心概念理解
+### 职责拆分
+- app/ingestion/manifest.py：只负责文档指纹、manifest 读写、判断哪些文档变化
+- app/ingestion/loader.py：只负责把 md 文件读取成 {"filename", "content"} 结构
+- app/ingestion/indexer.py：只负责切块、连接 Qdrant、全量写入、增量更新、加载已有索引
+- scripts/ingest.py：第一次初始化入口，会清空并重建 Qdrant，然后保存 manifest
+- scripts/ingest_incremental.py：后续增量入口，只替换变化文档对应的 chunks
+- main.py：服务启动入口，只加载已有 Qdrant，不再调用 build_index 重建
+
+### 初始化和启动分离
+```
+第一次上线/重建
+  ↓
+scripts/ingest.py
+  ↓
+全量写 Qdrant + 保存 manifest
+
+服务启动
+  ↓
+main.py
+  ↓
+load_existing_index()
+  ↓
+只加载已有 Qdrant + 为 BM25 切 docs 内存 chunks
+
+文档更新
+  ↓
+scripts/ingest_incremental.py
+  ↓
+只删除并重写变化文档的 chunks + 更新 manifest
+```
+
+### 为什么 main.py 不再 build_index
+- build_index 会删除整个 Qdrant collection，适合离线初始化，不适合服务每次启动
+- 服务启动应该快、稳定、无副作用，所以只连接已有 Qdrant
+- Searcher 仍然需要 all_chunks 给 BM25，因此 load_existing_index 会读取 docs 并切块，但不写入 Qdrant
+
+### Qdrant 增量删除条件
+```python
+FieldCondition(
+    key="metadata.source",
+    match=MatchValue(value=filename),
+)
+```
+含义：删除 payload 里 metadata.source 等于当前文件名的所有旧 chunks。
+
 ## RAG 完整链路（Day4 最终版）
 ```
 用户问题 query + session_id

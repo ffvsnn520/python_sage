@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.ingestion.loader import load_docs
 from app.ingestion.indexer import build_index
+from app.ingestion.manifest import build_manifest, save_manifest
+from app.core.config import DOCS_DIR
 
 if __name__ == "__main__":
     print("=" * 50)
@@ -22,5 +24,9 @@ if __name__ == "__main__":
 
     print("\n[2] 切块 + 写入 Qdrant...")
     vectorstore, chunks = build_index(docs)
+
+    print("\n[3] 保存 manifest...")
+    manifest = build_manifest(DOCS_DIR)
+    save_manifest(manifest)
 
     print("\n✓ 摄入完成，可以运行 test_search.py 验证召回效果")

@@ -1,4 +1,4 @@
-# 问题：PHP Session失效或不生效
+# 问题：PHP Session失效或不生效111
 
 ## 场景
 用户登录后session正常，但过一段时间自动退出，

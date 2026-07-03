@@ -9,7 +9,7 @@
 | Day3 | 接LLM，完整问答链路 | ✅ 完成 |
 | Day4 | 多轮对话 + 意图识别 | ✅ 完成 |
 | Day5 | FastAPI 服务化（错误处理/日志/健康检查） | ✅ 完成 |
-| Day6 | 文档更新机制 + 增量摄入 | 🔲 待开始 |
+| Day6 | 文档更新机制 + 增量摄入 | ✅ 完成 |
 | Day7 | 评估指标量化 | 🔲 待开始 |
 
 ## Week2
@@ -39,3 +39,9 @@
 - lifespan 负责启动初始化，middleware 负责记录请求耗时，exception handler 负责兜住异常
 - 业务错误用 HTTPException 明确返回，例如 400 空问题、503 知识库未就绪
 - 参数错误统一返回 422，格式固定为 success=false + error，方便前端和调用方处理
+
+## Day6 核心收获
+- 文档更新机制分两层：manifest 判断哪些 md 变化，indexer 负责把变化写入 Qdrant
+- 初始化和服务启动解耦：scripts/ingest.py 离线全量建库，main.py 启动时只加载已有 Qdrant
+- 增量摄入流程：load_manifest → get_changed_docs → load_docs_by_paths → update_index → save_manifest
+- Qdrant 删除旧 chunk 靠 metadata.source，不按文件 hash 删除；hash 只负责判断文档是否变化

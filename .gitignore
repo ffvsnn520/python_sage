@@ -7,3 +7,4 @@ data/manifest.json
 .DS_Store
 tmp
 app\core\config.py
+.ai

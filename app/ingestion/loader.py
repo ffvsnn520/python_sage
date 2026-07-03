@@ -19,3 +19,17 @@ def load_docs() -> list[dict]:
         })
         print(f"  已加载: {md_file.name} ({len(content)} 字符)")
     return docs
+
+
+def load_docs_by_paths(paths: list[Path]) -> list[dict]:
+    docs = []
+
+    for md_file in sorted(paths):
+        content = md_file.read_text(encoding="utf-8")
+        docs.append({
+            "filename": md_file.name,
+            "content": content,
+        })
+        print(f"  已加载: {md_file.name} ({len(content)} 字符)")
+
+    return docs

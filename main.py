@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.ingestion.loader import load_docs
-from app.ingestion.indexer import build_index
+from app.ingestion.indexer import load_existing_index
 from app.retrieval.searcher import Searcher
 from app.api.router import router
 from app.core.logging import setup_logging
@@ -30,15 +30,16 @@ logger = logging.getLogger("php_sage.main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时执行
-    logger.info("正在初始化知识库...")
+    logger.info("正在加载已有知识库...")
     docs = load_docs()
-    vectorstore, chunks = build_index(docs)
+    vectorstore, chunks = load_existing_index(docs)
+
     searcher = Searcher(vectorstore, chunks)
 
     # 把 searcher 挂到 app.state，路由里可以取到
     app.state.searcher = searcher
     app.state.ready = True
-    logger.info("知识库初始化完成，服务就绪，文档块数量=%s", len(chunks))
+    logger.info("知识库加载完成，服务就绪，文档块数量=%s", len(chunks))
 
     yield  # 服务运行中
 
