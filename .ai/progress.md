@@ -207,7 +207,7 @@ curl http://localhost:8000/health
 - [x] 实现 hit_at_k()：rank <= k 记为 1，否则记为 0。
 - [x] 实现 reciprocal_rank()：命中第 n 名得 1/n，未命中得 0。
 - [x] 跑通当前基准：cases=10，Hit@1=1.0000，Hit@3=1.0000，MRR=1.0000。
-- [ ] 后续需要解释：为什么 sources 里可能出现同一文档多次，因为检索返回的是 chunk，不是文档；当前脚本按第一次出现的位置计算文档 rank。
+- [x] 已解释：sources 里可能出现同一文档多次，因为检索返回的是 chunk，不是文档；当前脚本按第一次出现的位置计算文档 rank。
 
 ## 启动方式
 ```bash
@@ -334,3 +334,20 @@ intent.detect_intent()
     ↓
 返回 {query, answer, sources, intent}
 ```
+
+## Day8 学习计划：Tool Call 链路
+
+### 当前阶段先学
+- Tool schema：工具名称、描述、参数、返回结构和风险等级。
+- Tool registry：统一注册工具，并通过工具名查找执行。
+- 参数校验：必填、类型、长度/范围、未知参数。
+- 工具调用结果：统一返回 success、tool、error、data。
+- API 调试入口：GET /tools 查看工具，POST /tools/call 手动调用工具。
+
+### Day8 当前进度
+- [x] 新增 app/tools/registry.py，实现 Tool、ToolRegistry、参数校验和统一执行结果。
+- [x] 新增 app/tools/php_tools.py，注册 search_knowledge_base 和 get_service_status 两个只读工具。
+- [x] 新增 GET /tools 和 POST /tools/call，用于查看 schema 和手动调用工具。
+- [x] 新增 scripts/test_day8_tools.py，验证 schema、正常调用和参数校验失败。
+- [x] 修复 Day7 评估集中 memory-exhausted-export.md 的 expected_source 笔误。
+- [ ] 后续需要解释：为什么 Tool Call 的难点不只是函数调用，而是 schema、校验、权限、失败恢复和幂等性。

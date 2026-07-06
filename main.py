@@ -38,6 +38,7 @@ async def lifespan(app: FastAPI):
 
     # 把 searcher 挂到 app.state，路由里可以取到
     app.state.searcher = searcher
+    app.state.chunk_count = len(chunks)
     app.state.ready = True
     logger.info("知识库加载完成，服务就绪，文档块数量=%s", len(chunks))
 
@@ -77,6 +78,8 @@ async def request_log_middleware(request: Request, call_next):
 @app.middleware("http")
 async def inject_searcher(request: Request, call_next):
     request.state.searcher = getattr(request.app.state, "searcher", None)
+    request.state.ready = getattr(request.app.state, "ready", False)
+    request.state.chunk_count = getattr(request.app.state, "chunk_count", 0)
     return await call_next(request)
 
 

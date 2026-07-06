@@ -20,9 +20,11 @@ from pydantic import BaseModel, Field
 from app.core.llm import ask, ask_stream
 from app.core.prompt import build_messages, build_chitchat_messages
 from app.core.intent import detect_intent
+from app.tools.php_tools import build_tool_registry
 
 router = APIRouter()
 logger = logging.getLogger("php_sage.api")
+tool_registry = build_tool_registry()
 
 
 class HistoryItem(BaseModel):
@@ -41,6 +43,18 @@ class AskResponse(BaseModel):
     answer: str
     sources: list[str]
     intent: str
+
+
+class ToolCallRequest(BaseModel):
+    name: str
+    arguments: dict = Field(default_factory=dict)
+
+
+class ToolCallResponse(BaseModel):
+    success: bool
+    tool: str
+    error: str | None
+    data: dict | None
 
 
 # 内存级 session store，key=session_id，value=最近 MAX_HISTORY 条消息
@@ -65,6 +79,14 @@ def get_searcher(request: Request):
     if searcher is None:
         raise HTTPException(status_code=503, detail="知识库尚未初始化完成，请稍后重试")
     return searcher
+
+def build_tool_context(request: Request) -> dict:
+    return {
+        "searcher": getattr(request.state, "searcher", None),
+        "ready": getattr(request.state, "ready", False),
+        "chunk_count": getattr(request.state, "chunk_count", 0),
+        "tool_count": len(tool_registry.list_schemas()),
+    }
 
 
 @router.post("/ask", response_model=AskResponse)
@@ -160,3 +182,14 @@ async def clear_session(session_id: str):
 @router.get("/session/{session_id}/history")
 async def get_session_history(session_id: str):
     return {"session_id": session_id, "history": get_history(session_id)}
+
+
+@router.get("/tools")
+async def list_tools():
+    return {"tools": tool_registry.list_schemas()}
+
+
+@router.post("/tools/call", response_model=ToolCallResponse)
+async def call_tool(request: Request, body: ToolCallRequest):
+    result = tool_registry.execute(body.name, body.arguments, build_tool_context(request))
+    return ToolCallResponse(**result)

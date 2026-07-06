@@ -20,6 +20,13 @@ async def ask(messages: list[dict]) -> str:
         temperature=LLM_TEMPERATURE,
         stream=False,
     )
+
+    if response.usage:
+        print("prompt_tokens:", response.usage.prompt_tokens)
+        print("completion_tokens:", response.usage.completion_tokens)
+        print("total_tokens:", response.usage.total_tokens)
+
+
     return response.choices[0].message.content
 
 
