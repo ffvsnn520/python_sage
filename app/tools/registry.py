@@ -58,14 +58,11 @@ class ToolRegistry:
             safe_arguments = validate_arguments(tool.parameters, arguments)
 
             data = tool.handler(safe_arguments, context or {})
-
-            return None
+            return {"success": True, "tool": name, "error": None, "data": data}
         except ToolCallError as exc:
             return {"success": False, "tool": name, "error": str(exc), "data": None}
         except Exception as exc:
             return {"success": False, "tool": name, "error": f"工具执行失败: {exc}", "data": None}
-
-        return {"success": True, "tool": name, "error": None, "data": data}
 
 
 def validate_arguments(schema: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
@@ -127,4 +124,3 @@ def validate_value(key: str, value: Any, spec: dict[str, Any]) -> Any:
         return value
 
     raise ToolCallError(f"{key} 使用了暂不支持的参数类型: {expected_type}")
-

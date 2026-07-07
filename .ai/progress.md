@@ -350,4 +350,33 @@ intent.detect_intent()
 - [x] 新增 GET /tools 和 POST /tools/call，用于查看 schema 和手动调用工具。
 - [x] 新增 scripts/test_day8_tools.py，验证 schema、正常调用和参数校验失败。
 - [x] 修复 Day7 评估集中 memory-exhausted-export.md 的 expected_source 笔误。
-- [ ] 后续需要解释：为什么 Tool Call 的难点不只是函数调用，而是 schema、校验、权限、失败恢复和幂等性。
+- [x] 已解释：Tool Call 的难点不只是函数调用，而是 schema、校验、权限、失败恢复和幂等性。
+
+## Day9 学习计划：Agent 编排
+
+### 当前阶段先学
+- Planner：判断用户目标，决定下一步动作、选择工具、准备参数。
+- Executor：执行 Planner 选中的工具调用，不负责思考。
+- Observation：接收工具返回结果，作为 Agent 的中间观察数据。
+- Reflection：判断工具结果是否足够、是否失败、是否需要继续。
+- Stop condition：明确什么时候停止，避免无限循环或重复调用。
+
+### Day9 当前进度
+- [x] 新增 app/agent/orchestrator.py，实现最小 Agent 编排循环。
+- [x] 新增 POST /agent/ask，用 Agent 路径处理问题。
+- [x] Planner 当前为最小规则版：状态类问题走 get_service_status，普通 PHP 问题走 search_knowledge_base。
+- [x] Executor 通过 ToolRegistry.execute() 调用 Day8 已注册工具。
+- [x] Observation 记录工具统一返回结果 success/tool/error/data。
+- [x] Reflection 判断工具是否成功、搜索结果是否为空、是否足够生成答案。
+- [x] Stop condition 支持 out_of_scope、chitchat、tool_failed、no_search_results、enough_to_answer、max_steps_reached。
+- [x] 新增 scripts/test_day9_agent.py，验证服务状态查询和知识库查询两条 Agent 路径。
+
+### Day9 后续补学清单
+- 更强的 Planner：不只靠规则判断，而是支持任务拆解、多步计划和 LLM Planner。
+- 多步 Agent：一次任务可能调用多个工具，并基于前一步 observation 决定下一步。
+- 失败恢复：工具失败后重试、换工具、降级或提示用户补充信息。
+- 循环控制：记录已执行步骤，避免重复调用同一个工具或陷入无限循环。
+- 权限控制：写操作、高风险操作需要用户确认、审计日志和最小权限。
+- Agent 评估：补充任务完成率、工具调用成功率、失败恢复率、平均步数、成本和延迟。
+- MCP：作为后续外部工具和系统的标准接入方式补学。
+- Skills：作为后续复杂任务流程和可复用能力沉淀方式补学。

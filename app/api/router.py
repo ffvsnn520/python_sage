@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.agent.orchestrator import run_agent
 from app.core.llm import ask, ask_stream
 from app.core.prompt import build_messages, build_chitchat_messages
 from app.core.intent import detect_intent
@@ -55,6 +56,14 @@ class ToolCallResponse(BaseModel):
     tool: str
     error: str | None
     data: dict | None
+
+
+class AgentResponse(BaseModel):
+    query: str
+    answer: str
+    sources: list[str]
+    intent: str
+    trace: list[dict]
 
 
 # 内存级 session store，key=session_id，value=最近 MAX_HISTORY 条消息
@@ -193,3 +202,23 @@ async def list_tools():
 async def call_tool(request: Request, body: ToolCallRequest):
     result = tool_registry.execute(body.name, body.arguments, build_tool_context(request))
     return ToolCallResponse(**result)
+
+
+@router.post("/agent/ask", response_model=AgentResponse)
+async def agent_ask_endpoint(request: Request, body: AskRequest):
+    if not body.query.strip():
+        raise HTTPException(status_code=400, detail="query 不能为空")
+
+    session_id = body.session_id
+    history = get_history(session_id)
+    result = await run_agent(
+        query=body.query,
+        history=history,
+        tool_registry=tool_registry,
+        tool_context=build_tool_context(request),
+    )
+
+    append_history(session_id, "user", body.query)
+    append_history(session_id, "assistant", result["answer"])
+
+    return AgentResponse(**result)
