@@ -380,3 +380,71 @@ intent.detect_intent()
 - Agent 评估：补充任务完成率、工具调用成功率、失败恢复率、平均步数、成本和延迟。
 - MCP：作为后续外部工具和系统的标准接入方式补学。
 - Skills：作为后续复杂任务流程和可复用能力沉淀方式补学。
+
+## Day10 学习计划：对话历史管理（持久化）
+
+### 当前阶段先学
+- 区分业务 memory 和 LangGraph checkpoint：memory 保存对话、摘要、画像、任务状态；checkpoint 保存 graph 执行现场快照。
+- 当前 PHP-Sage 不使用 LangGraph checkpoint，先由业务侧自己实现 MySQL memory。
+- MySQL 保存完整 conversation_messages，但 prompt 只读取最近 MAX_HISTORY 条，避免上下文过长。
+- 对话历史写入顺序仍然是先读历史、生成回答、再写入 user 和 assistant。
+- 删除 session 当前采用软删除 deleted_at，方便后续审计和误删恢复。
+
+### Day10 当前进度
+- [x] 新增 app/memory/store.py，抽象 MemoryStore，并实现 InMemoryMemoryStore 与 MySQLMemoryStore。
+- [x] 新增 conversation_messages 表结构：session_id、role、content、created_at、deleted_at，并建立 session 查询索引。
+- [x] router.py 去掉内存级 _sessions，改为调用 get_history、append_history、clear_history。
+- [x] main.py 启动时初始化 memory store；MEMORY_BACKEND=mysql 时自动创建数据库和 conversation_messages 表。
+- [x] requirements.txt 新增 pymysql。
+- [x] 新增 scripts/test_day10_memory.py，验证最近 6 条历史、顺序和清除逻辑。
+
+### Day10 核心理解
+- MySQL conversation_messages 是业务事实来源，用于完整对话流水、后台展示、审计和后续摘要生成。
+- session memory 是 prompt 里使用的短期上下文，当前只取最近 6 条消息。
+- checkpoint 不是长期 memory 主库；它保存的是某个 thread 的 graph state 快照，用于中断恢复、human-in-the-loop、调试和 time travel。
+- 不启用 checkpoint 时，memory 层需要业务侧自己实现；启用 checkpoint 后，业务长期 memory 仍然建议独立存 MySQL。
+
+### MySQL 启用方式
+```bash
+export MEMORY_BACKEND=mysql
+export MYSQL_HOST=127.0.0.1
+export MYSQL_PORT=3306
+export MYSQL_USER=root
+export MYSQL_PASSWORD=你的密码
+export MYSQL_DATABASE=php_sage
+/home/fanyl/www/case/agent/langgraph_agent/venv311/bin/python main.py
+```
+
+### Day10 后续补学清单
+- conversation_summaries：按 session 生成压缩摘要，减少 prompt token。
+- user_profiles：沉淀用户稳定偏好、技术栈和背景。
+- task_states：记录跨轮任务进度，不和聊天流水混在一起。
+- memory policy：什么内容写入、什么时候更新、如何纠错、如何删除。
+- 如果后续引入 LangGraph checkpoint，再区分 MySQL 业务 memory 和 checkpoint 执行快照。
+
+### Day10 后续补齐时机
+- Day12 性能优化：补 conversation_summaries，用摘要压缩长历史，控制 prompt token 和延迟。
+- Day14 监控 + 反馈闭环：补 request_id/turn_id、sources、trace、latency、feedback 字段，把一轮问答、检索来源、Agent 工具调用和用户反馈关联起来。
+- Day14 之后或中级阶段：补 user_profiles、task_states 和 memory policy，区分长期用户画像、跨轮任务状态、错误记忆纠正和数据删除策略。
+- 引入复杂 LangGraph Agent 时：再评估 checkpoint 存储方案，明确 MySQL 业务 memory 与 checkpoint 执行快照的边界。
+
+## Day14 后补强点：Python/MySQL 工程基础
+
+### 暂不抢 Day11-Day14 主线
+- 当前先继续完成冷启动、性能优化、部署、监控反馈闭环。
+- MySQL 连接、Python 常用包、连接池、ORM、迁移工具等不在 Day10 当天展开，避免打乱两周主线。
+
+### 建议补强内容
+- pymysql 基础：connect、cursor、execute、fetchall、insert/update/delete、参数化 SQL。
+- 项目封装：config.py 管理数据库配置，db.py 或 store/repository 隔离数据库细节。
+- 连接池：理解为什么生产环境不应该每次请求新建连接。
+- SQLAlchemy 基础：了解 ORM/SQL 构造器在生产项目中的常见用法。
+- alembic：了解数据库表结构迁移，不手工到处改表。
+- FastAPI + DB：启动时初始化连接池，请求中读写数据库，异常处理和测试。
+
+### 当前阶段够用标准
+- 能解释 MemoryStore 为什么要存在。
+- 能看懂 get_history、append_history、clear_history 的职责。
+- 能知道 MySQL 连接参数从环境变量读取。
+- 能读懂 conversation_messages 的基本 SQL。
+- 暂时不要求独立写出连接池、异步 DB、ORM 和复杂事务。

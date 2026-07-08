@@ -18,7 +18,7 @@
 |-----|------|------|
 | Day8  | Tool Call 链路 | 🔄 进行中 |
 | Day9  | Agent 编排 | ✅ 已完成 |
-| Day10 | 对话历史管理（升级为持久化） | 🔲 待开始 |
+| Day10 | 对话历史管理（升级为持久化） | ✅ 已完成 |
 | Day11 | 冷启动 + 兜底策略 | 🔲 待开始 |
 | Day12 | 性能优化 | 🔲 待开始 |
 | Day13 | 部署上线 | 🔲 待开始 |
@@ -55,6 +55,36 @@
 - Day11 冷启动 + 兜底策略：补 Context Relevance、无答案场景评估。
 - Day12 性能优化：补 Precision@K、nDCG，用于比较 chunk/top_k/rerank 参数。
 - Day14 监控 + 反馈闭环：补 Answer Correctness、Faithfulness、LLM-as-a-Judge 和评估框架。
+
+## Day10 后续补齐安排
+
+### 当前已完成
+- 最小持久化 memory：conversation_messages 表 + 最近 MAX_HISTORY 条上下文召回。
+- 业务 memory 与 LangGraph checkpoint 的概念边界。
+
+### 暂缓进阶
+- conversation_summaries：长历史压缩摘要。
+- user_profiles：用户长期偏好、技术背景、常用技术栈。
+- task_states：跨轮任务状态和中间结果。
+- turn_id/request_id/sources/trace/feedback：把一轮问答、检索来源、工具调用、耗时和用户反馈关联起来。
+- memory policy：写入、召回、更新、纠错、删除和保留周期。
+
+### 建议补学时机
+- Day12 性能优化：补 conversation_summaries 和 token 控制。
+- Day14 监控 + 反馈闭环：补 trace、feedback、sources、latency 和 request_id/turn_id。
+- Day14 之后或中级阶段：补 user_profiles、task_states、memory policy，以及复杂 Agent 下的 checkpoint 存储方案。
+
+## Day14 后 Python/MySQL 补强点
+
+### 暂缓原因
+- 当前两周主线优先完成 RAG/Agent 服务闭环。
+- Day10 只要求能读懂最小 MySQL memory 改造，不要求马上掌握完整数据库工程。
+
+### 补强范围
+- Python 常用包地图：fastapi、pydantic、uvicorn、pymysql、SQLAlchemy、alembic、httpx、pytest、logging。
+- MySQL 基础连接：pymysql 连接、参数化 SQL、查询/插入/更新/软删除。
+- 工程封装：配置管理、store/repository 分层、连接池、异常处理。
+- 进阶方向：异步 DB、ORM、数据库迁移、事务和并发一致性。
 
 ## Day4 核心收获
 - 意图识别两阶段：规则优先（0延迟）+ LLM兜底（处理模糊边界）

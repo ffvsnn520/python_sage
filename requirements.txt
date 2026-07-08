@@ -8,3 +8,4 @@ jieba
 fastapi
 uvicorn
 python-dotenv
+pymysql

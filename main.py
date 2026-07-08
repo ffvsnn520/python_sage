@@ -19,6 +19,7 @@ from app.ingestion.indexer import load_existing_index
 from app.retrieval.searcher import Searcher
 from app.api.router import router
 from app.core.logging import setup_logging
+from app.memory.store import init_memory_store
 
 
 setup_logging()
@@ -30,6 +31,9 @@ logger = logging.getLogger("php_sage.main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时执行
+    logger.info("正在初始化对话历史存储...")
+    init_memory_store()
+
     logger.info("正在加载已有知识库...")
     docs = load_docs()
     vectorstore, chunks = load_existing_index(docs)
