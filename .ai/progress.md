@@ -428,10 +428,49 @@ export MYSQL_DATABASE=php_sage
 - Day14 之后或中级阶段：补 user_profiles、task_states 和 memory policy，区分长期用户画像、跨轮任务状态、错误记忆纠正和数据删除策略。
 - 引入复杂 LangGraph Agent 时：再评估 checkpoint 存储方案，明确 MySQL 业务 memory 与 checkpoint 执行快照的边界。
 
+## Day11 学习计划：冷启动 + 兜底策略
+
+### 当前阶段先学
+- 冷启动：知识库尚未初始化、searcher 不存在、服务刚启动但还不能稳定回答。
+- 召回为空：检索没有拿到可用 chunks 时，不把空上下文交给 LLM 硬编答案。
+- LLM 失败：模型超时或异常时返回受控提示，不让接口变成 500。
+- Tool 失败：工具失败后停止当前轮，不盲目重复调用。
+- Agent 兜底：Observation 失败或无结果时，由 Reflection 明确 stop reason，并给用户可解释的下一步建议。
+
+### Day11 当前进度
+- [x] 新增 app/core/fallback.py，集中管理 service_not_ready、no_retrieval、llm_unavailable、tool_failed 等兜底文案和 safe_answer()。
+- [x] POST /ask 接入冷启动兜底：知识库未就绪时直接返回可控说明，不再抛 503 给普通问答用户。
+- [x] POST /ask 接入召回为空兜底：searcher.search() 无结果时提示用户补充错误信息、日志关键字或组件名称，不调用 LLM 编造答案。
+- [x] POST /ask 和闲聊路径接入 safe_answer()，LLM 调用失败时返回模型不可用提示。
+- [x] GET /ask/stream 接入知识库未就绪、召回为空和流式 LLM 异常兜底，并在兜底响应后写入 session 历史。
+- [x] Agent 编排接入统一兜底：工具失败、知识库未初始化、无检索结果、LLM 失败都会给出明确答案和 trace stop reason。
+- [x] 新增 scripts/test_day11_fallback.py，验证冷启动、召回为空、LLM 失败三类核心降级路径。
+
+### Day11 核心理解
+- 兜底不是一句“出错了”，而是根据失败类型给出不同策略：未初始化提示稍后重试，召回为空提示补充信息，LLM 失败提示模型暂不可用，工具失败停止继续重试。
+- 确定性错误不适合重试，例如参数错误、知识库未初始化、召回为空；临时错误才考虑重试，例如网络抖动或模型超时。
+- RAG 无召回时不应该让 LLM 自由发挥，因为这会把“无资料”变成“看起来很像答案的幻觉”。
+- Agent 的失败也要进入 trace：Planner/Executor/Observation/Reflection/Stop condition 需要能说明为什么停下。
+
+### Day11 后续补学清单
+- Context Relevance：不仅判断有没有 chunks，还要判断 chunk 是否真的能回答问题。
+- 低置信度策略：结合 rerank score、来源数量、命中关键词设计更细的置信度分层。
+- 重试与熔断：为 LLM、外部工具增加有限重试、超时、连续失败熔断。
+- human-in-the-loop：高风险写操作、低置信度排障建议、生产变更建议需要人工确认。
+
+### Day11 后续补齐时机
+- Day12 性能优化：补超时、重试成本、缓存和 fallback 对延迟的影响。
+- Day14 监控 + 反馈闭环：补 no_retrieval_rate、tool_failed_rate、llm_failed_rate、fallback_rate 等指标。
+- 中级阶段：补置信度模型、人工接管策略和更完整的降级矩阵。
+
+### Day11 当前掌握状态
+- 当前目标不是独立设计完整线上兜底体系，而是能看懂每个关键环节为什么要有失败返回、为什么不能无召回时硬让 LLM 编答案。
+- 未展开内容已经进入后续补齐安排，Day12/Day14 会按主线继续补，不需要今天一次吃完。
+
 ## Day14 后补强点：Python/MySQL 工程基础
 
 ### 暂不抢 Day11-Day14 主线
-- 当前先继续完成冷启动、性能优化、部署、监控反馈闭环。
+- 当前先继续完成性能优化、部署、监控反馈闭环。
 - MySQL 连接、Python 常用包、连接池、ORM、迁移工具等不在 Day10 当天展开，避免打乱两周主线。
 
 ### 建议补强内容
@@ -448,3 +487,38 @@ export MYSQL_DATABASE=php_sage
 - 能知道 MySQL 连接参数从环境变量读取。
 - 能读懂 conversation_messages 的基本 SQL。
 - 暂时不要求独立写出连接池、异步 DB、ORM 和复杂事务。
+
+## Day12 学习计划：性能优化
+
+### 当前阶段先学
+- 性能基线：使用固定问题记录检索耗时，避免凭感觉优化。
+- 分段耗时：区分向量召回、BM25、rerank、Memory 和 LLM，定位真正瓶颈。
+- 检索参数对比：比较候选数量与 rerank 数量对延迟、Hit@K、MRR 的影响。
+- 低风险优化：优先减少不必要计算，同时保证检索质量不退化。
+- LLM 超时意识：理解超时、有限重试、流式首 token 时间与总耗时的区别。
+
+### Day12 当前进度
+- [x] 读取当前问答、检索、LLM 和 Memory 实现，完成初步性能审计。
+- [ ] 新增可重复运行的性能基线脚本。
+- [ ] 为检索链路增加分段计时。
+- [ ] 使用固定评估集记录优化前结果。
+- [ ] 完成一项低风险优化并复测质量与耗时。
+
+### 暂缓进阶
+- conversation_summaries：长对话摘要与 token 预算管理。
+- MySQL 连接池、异步数据库驱动与并发压测。
+- 多级缓存、分布式缓存、缓存一致性和失效策略。
+- Precision@K、nDCG 与更完整的参数实验报告。
+- LLM 并发限制、熔断、自适应重试和成本治理。
+
+### 建议补学时机
+- Day14：结合 trace、latency、token usage 建立线上性能监控。
+- Python/MySQL 工程补强阶段：实现连接池和数据库并发优化。
+- RAG 深化阶段：补 Precision@K、nDCG 和完整检索参数实验。
+
+## 中级路线图记录
+
+- 已在 .ai/plan.md 中新增“中级路线图（Day14 之后）”，不改动当前 Day1-Day14 初级主线。
+- 中级阶段定位：从能看懂和改造 demo，升级到能独立设计并实现一个小型生产化 AI Agent 服务。
+- 中级学习方式：逐步改为学习者先写 30%-50%，再 review、修正、补工程边界。
+- 中级阶段包含：Python/MySQL 工程补强、RAG 深化、Agent Loop 与 Planner、Tool Calling 工程化、Memory 体系、可靠性、评估回测、线上监控反馈、自动化工作流和简单多 Agent、微调和模型策略入门。

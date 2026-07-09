@@ -18,9 +18,17 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.agent.orchestrator import run_agent
+from app.core.fallback import (
+    has_usable_retrieval,
+    llm_unavailable_answer,
+    no_retrieval_answer,
+    safe_answer,
+    service_not_ready_answer,
+)
 from app.core.llm import ask, ask_stream
 from app.core.prompt import build_messages, build_chitchat_messages
 from app.core.intent import detect_intent
+from app.memory.store import append_history, clear_history, get_history
 from app.tools.php_tools import build_tool_registry
 
 router = APIRouter()
@@ -66,28 +74,15 @@ class AgentResponse(BaseModel):
     trace: list[dict]
 
 
-# 内存级 session store，key=session_id，value=最近 MAX_HISTORY 条消息
-_sessions: dict[str, list[dict]] = {}
-MAX_HISTORY = 6
-
-
-def get_history(session_id: str) -> list[dict]:
-    return _sessions.get(session_id, [])
-
-
-def append_history(session_id: str, role: str, content: str):
-    if session_id not in _sessions:
-        _sessions[session_id] = []
-    _sessions[session_id].append({"role": role, "content": content})
-    if len(_sessions[session_id]) > MAX_HISTORY:
-        _sessions[session_id] = _sessions[session_id][-MAX_HISTORY:]
-
-
 def get_searcher(request: Request):
     searcher = getattr(request.state, "searcher", None)
     if searcher is None:
         raise HTTPException(status_code=503, detail="知识库尚未初始化完成，请稍后重试")
     return searcher
+
+
+def get_optional_searcher(request: Request):
+    return getattr(request.state, "searcher", None)
 
 def build_tool_context(request: Request) -> dict:
     return {
@@ -117,16 +112,24 @@ async def ask_endpoint(request: Request, body: AskRequest):
     elif intent == "chitchat":
         history = get_history(session_id)
         messages = build_chitchat_messages(body.query, history)
-        answer = await ask(messages)
+        answer = await safe_answer(messages, ask)
         sources = []
 
     else:  # rag_query
-        searcher = get_searcher(request)
-        chunks = searcher.search(body.query)
-        history = get_history(session_id)
-        messages = build_messages(body.query, chunks, history)
-        answer = await ask(messages)
-        sources = list(dict.fromkeys(c["source"] for c in chunks))
+        searcher = get_optional_searcher(request)
+        if searcher is None:
+            answer = service_not_ready_answer()
+            sources = []
+        else:
+            chunks = searcher.search(body.query)
+            if not has_usable_retrieval(chunks):
+                answer = no_retrieval_answer()
+                sources = []
+            else:
+                history = get_history(session_id)
+                messages = build_messages(body.query, chunks, history)
+                answer = await safe_answer(messages, ask)
+                sources = list(dict.fromkeys(c["source"] for c in chunks))
 
     # 3. 写入 session（先读后写，顺序不能反）
     append_history(session_id, "user", body.query)
@@ -156,17 +159,42 @@ async def ask_stream_endpoint(query: str, request: Request, session_id: str = "d
     elif intent == "chitchat":
         messages = build_chitchat_messages(query, history)
     else:
-        searcher = get_searcher(request)
+        searcher = get_optional_searcher(request)
+        if searcher is None:
+            async def not_ready_gen():
+                msg = service_not_ready_answer()
+                yield f"data: {msg}\n\n"
+                yield "data: [DONE]\n\n"
+                append_history(session_id, "user", query)
+                append_history(session_id, "assistant", msg)
+            return StreamingResponse(not_ready_gen(), media_type="text/event-stream",
+                                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
         chunks = searcher.search(query)
+        if not has_usable_retrieval(chunks):
+            async def no_retrieval_gen():
+                msg = no_retrieval_answer()
+                yield f"data: {msg}\n\n"
+                yield "data: [DONE]\n\n"
+                append_history(session_id, "user", query)
+                append_history(session_id, "assistant", msg)
+            return StreamingResponse(no_retrieval_gen(), media_type="text/event-stream",
+                                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
         messages = build_messages(query, chunks, history)
 
     collected = []
 
     async def event_generator():
-        async for token in ask_stream(messages):
-            collected.append(token)
-            safe_token = token.replace("\n", "\\n")
-            yield f"data: {safe_token}\n\n"
+        try:
+            async for token in ask_stream(messages):
+                collected.append(token)
+                safe_token = token.replace("\n", "\\n")
+                yield f"data: {safe_token}\n\n"
+        except Exception:
+            logger.exception("stream LLM 调用失败，触发兜底响应")
+            msg = llm_unavailable_answer()
+            collected.clear()
+            collected.append(msg)
+            yield f"data: {msg}\n\n"
         yield "data: [DONE]\n\n"
         # 流结束后才能拼完整答案，再写 session
         full_answer = "".join(collected)
@@ -182,8 +210,8 @@ async def ask_stream_endpoint(query: str, request: Request, session_id: str = "d
 
 @router.delete("/session/{session_id}")
 async def clear_session(session_id: str):
-    if session_id in _sessions:
-        del _sessions[session_id]
+    affected = clear_history(session_id)
+    if affected:
         return {"message": f"session {session_id!r} 已清除"}
     return {"message": f"session {session_id!r} 不存在"}
 

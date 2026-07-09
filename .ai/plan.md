@@ -19,8 +19,8 @@
 | Day8  | Tool Call 链路 | 🔄 进行中 |
 | Day9  | Agent 编排 | ✅ 已完成 |
 | Day10 | 对话历史管理（升级为持久化） | ✅ 已完成 |
-| Day11 | 冷启动 + 兜底策略 | 🔲 待开始 |
-| Day12 | 性能优化 | 🔲 待开始 |
+| Day11 | 冷启动 + 兜底策略 | ✅ 已完成 |
+| Day12 | 性能优化 | 🔄 进行中 |
 | Day13 | 部署上线 | 🔲 待开始 |
 | Day14 | 监控 + 反馈闭环 | 🔲 待开始 |
 
@@ -85,6 +85,79 @@
 - MySQL 基础连接：pymysql 连接、参数化 SQL、查询/插入/更新/软删除。
 - 工程封装：配置管理、store/repository 分层、连接池、异常处理。
 - 进阶方向：异步 DB、ORM、数据库迁移、事务和并发一致性。
+
+## 中级路线图（Day14 之后）
+
+### 定位
+- 初级两周计划目标：跑通一个可面试表达的垂直 RAG/Agent 服务闭环。
+- 中级路线图目标：从“能看懂和改造 demo”升级到“能独立设计并实现一个小型生产化 AI Agent 服务”。
+- 中级阶段开始后，学习方式要从“跟着实现”逐步变成“先自己写 30%-50%，再 review、修正、补工程边界”。
+
+### 阶段0：Python/MySQL 工程补强（1-2 周）
+- pymysql 基础：connect、cursor、execute、fetchall、insert/update/delete、参数化 SQL。
+- 数据库工程：事务、连接池、配置管理、store/repository 分层。
+- 生产常用工具：SQLAlchemy 基础、alembic 迁移、pytest、logging。
+- 目标产出：能独立写 FastAPI + MySQL 小模块，能自己实现 get_history、append_message、clear_session。
+
+### 阶段1：RAG 深化（1 周）
+- chunk 策略、chunk size/overlap 对比。
+- BM25 + 向量混合召回、rerank 参数调优、多路召回基础。
+- query rewrite、无答案判断、Context Relevance。
+- Precision@K、Recall@K、nDCG。
+- 目标产出：召回实验脚本和参数对比报告，能判断失败来自召回还是生成。
+
+### 阶段2：Agent Loop 与 Planner（1 周）
+- Agent loop、Planner、Executor、Observation、Reflection、Stop condition。
+- 多步任务规划、LLM Planner、规则 Planner 与 LLM Planner 取舍。
+- 循环检测、最大步数控制、失败停止。
+- 目标产出：多步 run_agent、trace 记录、max_steps 防死循环。
+
+### 阶段3：Tool Calling 工程化（1 周）
+- tool schema、参数校验、只读/写入/高风险工具分级。
+- 幂等 key、超时、重试、失败降级、审计日志。
+- human confirmation 高风险确认流程。
+- 目标产出：工具调用日志表、高风险工具确认 demo、幂等调用 demo。
+
+### 阶段4：Memory 体系（1 周）
+- conversation_messages、conversation_summaries、user_profiles、task_states。
+- memory policy：写入、召回、更新、纠错、删除。
+- checkpoint 与 business memory 边界。
+- 目标产出：summary/profile/task_state 表，从 MySQL 组装 Agent state。
+
+### 阶段5：冷启动、降级和可靠性（3-5 天）
+- 知识库未就绪、检索为空、低置信度、LLM 超时、Tool 失败。
+- retry、fallback、熔断、人工介入、统一错误响应。
+- 目标产出：统一 fallback 策略、低置信度判断、工具失败恢复。
+
+### 阶段6：评估和多轮回测（1 周）
+- RAG eval、Agent eval、任务完成率、工具调用成功率、失败恢复率。
+- 平均步数、latency、token cost、LLM-as-judge。
+- 多轮对话测试集、回归测试集。
+- 目标产出：eval_cases、eval_runs、多轮回测脚本、prompt/model 变更对比。
+
+### 阶段7：线上监控和反馈闭环（1 周）
+- request_id、turn_id、trace、sources、latency、token usage。
+- error rate、empty retrieval rate、user feedback、人工标注、失败归因。
+- 目标产出：trace 表、feedback 表、失败样本收集和回流 eval dataset。
+
+### 阶段8：自动化工作流和简单多 Agent（1 周）
+- 任务拆解、工作流节点、条件分支、人工确认节点。
+- planner + executor + reviewer。
+- router agent、specialist agent、critic/reviewer agent。
+- 目标产出：一个运维排查工作流，一个简单多 Agent 分工 demo。
+
+### 阶段9：微调和模型策略（了解为主，3-5 天）
+- RAG vs fine-tuning，什么时候需要微调。
+- SFT/LoRA 概念、微调数据格式、评估和回滚。
+- 模型选择、成本、延迟。
+- 目标产出：能判断问题应该用 RAG、prompt、工具、记忆还是微调。
+
+### 中级完成后的能力目标
+- 能独立设计一个中小型垂直 Agent 服务。
+- 能自己写核心模块，并解释每个模块为什么存在。
+- 能做召回优化、Agent 编排、工具调用、记忆、评估、监控和基础工作流。
+- 能在面试中讲清生产化 Agent 的系统设计、失败处理、评估优化和上线监控。
+- 暂不定位为复杂多 Agent 平台架构师或模型训练专家。
 
 ## Day4 核心收获
 - 意图识别两阶段：规则优先（0延迟）+ LLM兜底（处理模糊边界）

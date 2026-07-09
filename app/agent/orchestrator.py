@@ -6,6 +6,13 @@ observes the result, reflects on whether it is enough, and then stops.
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from app.core.fallback import (
+    has_usable_retrieval,
+    no_retrieval_answer,
+    safe_answer,
+    service_not_ready_answer,
+    tool_failed_answer,
+)
 from app.core.intent import detect_intent
 from app.core.llm import ask
 from app.core.prompt import build_chitchat_messages, build_messages
@@ -49,7 +56,7 @@ async def run_agent(
 
     if intent == "chitchat":
         messages = build_chitchat_messages(query, history)
-        answer = await answerer(messages)
+        answer = await safe_answer(messages, answerer)
         trace.append({"stage": "stop", "reason": "chitchat_answered"})
         return _final(query, answer, [], intent, trace)
 
@@ -66,8 +73,6 @@ async def run_agent(
             }
         )
 
-
-        print("tool_name", tool_name)
         observation = tool_registry.execute(tool_name, arguments, tool_context)
         trace.append({"stage": "observation", "step": step, "result": observation})
 
@@ -143,7 +148,10 @@ async def _build_final_answer(
     answerer: Answerer,
 ) -> tuple[str, list[str]]:
     if not observation["success"]:
-        return f"工具调用失败：{observation['error']}", []
+        error = observation.get("error")
+        if "知识库尚未初始化" in str(error):
+            return service_not_ready_answer(), []
+        return tool_failed_answer(error), []
 
     data = observation["data"] or {}
     if tool_name == "get_service_status":
@@ -156,11 +164,11 @@ async def _build_final_answer(
         return answer, []
 
     results = data.get("results", [])
-    if not results:
-        return "我没有在知识库里检索到足够相关的资料，建议换一个更具体的 PHP 错误现象再问。", []
+    if not has_usable_retrieval(results):
+        return no_retrieval_answer(), []
 
     messages = build_messages(query, results, history)
-    answer = await answerer(messages)
+    answer = await safe_answer(messages, answerer)
     sources = data.get("sources", [])
     return answer, sources
 
