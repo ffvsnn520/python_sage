@@ -499,10 +499,10 @@ export MYSQL_DATABASE=php_sage
 
 ### Day12 当前进度
 - [x] 读取当前问答、检索、LLM 和 Memory 实现，完成初步性能审计。
-- [ ] 新增可重复运行的性能基线脚本。
-- [ ] 为检索链路增加分段计时。
-- [ ] 使用固定评估集记录优化前结果。
-- [ ] 完成一项低风险优化并复测质量与耗时。
+- [x] 新增 scripts/test_day12_performance.py，同时测量检索延迟与 Hit@K/MRR。
+- [x] 为检索链路增加分段计时：输出 vector、BM25、merge、rerank、format 和候选数量。
+- [x] 使用固定评估集记录优化前结果：初始化 48664.75ms，检索平均 1364.41ms，P50 1294.62ms，P95 2051.53ms；Hit@1/Hit@3/MRR 均为 1.0。
+- [x] 完成一项低风险优化并复测质量与耗时：将 rerank 候选从平均 6 个减少到 4 个，检索平均耗时从 1499.87ms 降到 888.80ms；Hit@1/Hit@3/MRR 均保持 1.0。
 
 ### 暂缓进阶
 - conversation_summaries：长对话摘要与 token 预算管理。
@@ -516,9 +516,52 @@ export MYSQL_DATABASE=php_sage
 - Python/MySQL 工程补强阶段：实现连接池和数据库并发优化。
 - RAG 深化阶段：补 Precision@K、nDCG 和完整检索参数实验。
 
+### 用户提醒：Day12 后续必须补强
+- 不要把 Day12 理解成“生产优化 = 把 rerank 候选数从 6 改成 4”。这只是教学用的小步优化示例。
+- 后续需要系统补讲生产级 RAG 优化框架：文档切分、metadata、混合召回、Query Rewrite、粗排、rerank 策略、上下文压缩、Prompt token 控制、LLM 延迟、缓存、并发、监控与成本。
+- 后续讲性能优化时，必须同时说明三角权衡：准确率、延迟、成本。
+- 后续进入 RAG 深化阶段时，需要把候选规模改成更接近生产的思路：先扩大召回，再通过粗排/精排/评估控制质量，而不是简单减少候选数。
+
 ## 中级路线图记录
 
 - 已在 .ai/plan.md 中新增“中级路线图（Day14 之后）”，不改动当前 Day1-Day14 初级主线。
 - 中级阶段定位：从能看懂和改造 demo，升级到能独立设计并实现一个小型生产化 AI Agent 服务。
 - 中级学习方式：逐步改为学习者先写 30%-50%，再 review、修正、补工程边界。
 - 中级阶段包含：Python/MySQL 工程补强、RAG 深化、Agent Loop 与 Planner、Tool Calling 工程化、Memory 体系、可靠性、评估回测、线上监控反馈、自动化工作流和简单多 Agent、微调和模型策略入门。
+- 用户新增约束：中级阶段必须全程引导监督学习，不能再由 AI 自动把代码全部写完；每个阶段都要让学习者产生足够多的手写代码量，AI 主要负责拆任务、提示、review、纠偏和补工程边界。
+
+## Day13 学习计划：部署上线
+
+### 当前阶段先学
+- 环境变量管理：`.env` 保存真实密钥，`.env.example` 只保存示例值，代码不再硬编码 API Key。
+- Dockerfile：把 Python 版本、依赖安装、工作目录和 uvicorn 启动命令固化下来。
+- docker-compose：同时编排 `php-sage` API 服务和 MySQL，挂载 `data/`、`docs/` 和模型缓存。
+- 初始化顺序：先构建镜像，再运行 `scripts/ingest.py` 初始化 Qdrant，最后启动 API 服务。
+- 健康检查：`/health` 返回 `ready=true` 才代表服务真正加载完知识库。
+
+### Day13 当前进度
+- [x] 修改 `app/core/config.py`，使用 `python-dotenv` 读取 `.env`，移除代码里的硬编码 API Key。
+- [x] 新增 `.env.example`，记录 LLM 和 MySQL 的必要环境变量示例。
+- [x] 新增 `Dockerfile`，使用 `python:3.10-slim` 构建 FastAPI 运行镜像。
+- [x] 新增 `docker-compose.yml`，编排 API 服务、MySQL、数据卷、模型缓存和健康检查。
+- [x] 新增 `.dockerignore`，避免把 `.env`、虚拟环境、缓存和 git 元数据打进镜像。
+- [x] 新增 `docs/deploy.md`，记录本地部署、知识库初始化和健康检查流程。
+- [x] 新增 `scripts/check_day13_deploy.py`，验证部署文件存在、健康检查配置存在、代码不再包含 `sk-` 密钥。
+
+### Day13 核心理解
+- 部署上线不是“服务能在本机跑”，而是运行环境、配置、数据初始化和健康检查都能被别人重复执行。
+- 密钥必须从环境变量注入；`.env.example` 可以提交，真实 `.env` 必须忽略。
+- RAG 服务上线前需要先初始化知识库索引，否则 FastAPI 进程启动了也不能算可用。
+- 健康检查要检查业务 ready 状态，不能只检查端口是否打开。
+
+### Day13 暂缓进阶
+- Nginx 反向代理、HTTPS、域名和证书续期。
+- CI/CD 自动构建、自动测试、自动发布和回滚。
+- 多副本、滚动发布、蓝绿发布和灰度发布。
+- 线上 Secret Manager、镜像仓库、最小权限和审计。
+- Qdrant Server 模式、独立向量数据库、备份恢复和迁移。
+
+### Day13 后续补齐时机
+- Day14：把部署后的日志、健康状态、latency、error rate 和 feedback 接入监控闭环。
+- 中级可靠性阶段：补发布策略、熔断重试、容量规划、反向代理和 HTTPS。
+- 中级数据库阶段：补 MySQL 连接池、迁移、备份恢复和权限收敛。

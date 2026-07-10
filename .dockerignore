@@ -1,0 +1,9 @@
+.ai
+.env
+.git
+__pycache__
+*.pyc
+venv
+venv*/
+tmp
+data/qdrant/.lock

@@ -1,0 +1,52 @@
+services:
+  php-sage:
+    build: .
+    container_name: php-sage
+    env_file:
+      - .env
+    environment:
+      MEMORY_BACKEND: ${MEMORY_BACKEND:-mysql}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-php_sage}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-php_sage_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-php_sage}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./docs:/app/docs:ro
+      - hf-cache:/app/.cache/huggingface
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json, urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); data=json.load(r); raise SystemExit(0 if data.get('ready') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    container_name: php-sage-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-php_sage}
+      MYSQL_USER: ${MYSQL_USER:-php_sage}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-php_sage_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  hf-cache:

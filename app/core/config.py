@@ -1,8 +1,12 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # 项目根目录
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+load_dotenv(BASE_DIR / ".env")
 
 # 文档目录
 DOCS_DIR = BASE_DIR / "docs"
@@ -24,14 +28,14 @@ CHUNK_OVERLAP = 50
 
 # 检索参数
 RETRIEVAL_TOP_K = 5   # 向量+BM25 各取5个候选
+RERANK_CANDIDATE_TOP_K = 4  # 只把合并后的前4个候选交给 reranker，降低精排耗时
 RERANK_TOP_K = 3      # rerank后返回3个
 RERANK_THRESHOLD = 0.1
 
-# ── LLM 配置（复用 langgraph_agent 的阿里云 DashScope）──────────────
-# 优先读环境变量，fallback 到 langgraph_agent/.env 的值
-LLM_API_KEY  = os.getenv("API_KEY",   "sk-721a501372a344a395c26e0369c9c84c")
-LLM_BASE_URL = os.getenv("BASE_URL",  "https://dashscope.aliyuncs.com/compatible-mode/v1")
-LLM_MODEL    = os.getenv("MODEL",     "qwen-plus")
+# ── LLM 配置（部署时必须由环境变量或 .env 注入）──────────────
+LLM_API_KEY  = os.getenv("API_KEY", "")
+LLM_BASE_URL = os.getenv("BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+LLM_MODEL    = os.getenv("MODEL", "qwen-plus")
 
 # LLM 生成参数
 LLM_MAX_TOKENS   = 1024
