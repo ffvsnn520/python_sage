@@ -34,7 +34,7 @@ def main() -> None:
         ".dockerignore",
         "Dockerfile",
         "docker-compose.yml",
-        "docs/deploy.md",
+        "DEPLOY.md",
     ]:
         require_file(path)
 

@@ -2,7 +2,7 @@
 
 ## Day13 当前必学
 
-- 环境变量：API Key、模型地址、MySQL 密码不能写死在代码里。
+- 环境变量：API Key、数据库密码、模型配置不能写死在代码里。
 - 镜像构建：用 Dockerfile 固化 Python 运行环境和启动命令。
 - 服务编排：用 docker-compose 同时启动 API 服务和 MySQL。
 - 数据初始化：上线前先运行离线摄入脚本，生成 Qdrant 本地索引。

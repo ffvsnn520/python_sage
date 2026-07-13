@@ -11,6 +11,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-php_sage}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-php_sage_password}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-php_sage}
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
     ports:
       - "8000:8000"
     volumes:
@@ -25,7 +26,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 120s
+      start_period: 300s
     restart: unless-stopped
 
   mysql:
@@ -36,8 +37,6 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-php_sage}
       MYSQL_USER: ${MYSQL_USER:-php_sage}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-php_sage_password}
-    ports:
-      - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:

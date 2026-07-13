@@ -6,14 +6,23 @@ ask_stream() -> 流式调用，返回 async generator
 from openai import AsyncOpenAI
 from app.core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_MAX_TOKENS, LLM_TEMPERATURE
 
-_client = AsyncOpenAI(
-    api_key=LLM_API_KEY,
-    base_url=LLM_BASE_URL,
-)
+_client: AsyncOpenAI | None = None
+
+
+def get_client() -> AsyncOpenAI:
+    global _client
+    if _client is None:
+        if not LLM_API_KEY:
+            raise RuntimeError("缺少 API_KEY 环境变量，无法调用 LLM")
+        _client = AsyncOpenAI(
+            api_key=LLM_API_KEY,
+            base_url=LLM_BASE_URL,
+        )
+    return _client
 
 
 async def ask(messages: list[dict]) -> str:
-    response = await _client.chat.completions.create(
+    response = await get_client().chat.completions.create(
         model=LLM_MODEL,
         messages=messages,
         max_tokens=LLM_MAX_TOKENS,
@@ -31,7 +40,7 @@ async def ask(messages: list[dict]) -> str:
 
 
 async def ask_stream(messages: list[dict]):
-    stream = await _client.chat.completions.create(
+    stream = await get_client().chat.completions.create(
         model=LLM_MODEL,
         messages=messages,
         max_tokens=LLM_MAX_TOKENS,

@@ -545,7 +545,7 @@ export MYSQL_DATABASE=php_sage
 - [x] 新增 `Dockerfile`，使用 `python:3.10-slim` 构建 FastAPI 运行镜像。
 - [x] 新增 `docker-compose.yml`，编排 API 服务、MySQL、数据卷、模型缓存和健康检查。
 - [x] 新增 `.dockerignore`，避免把 `.env`、虚拟环境、缓存和 git 元数据打进镜像。
-- [x] 新增 `docs/deploy.md`，记录本地部署、知识库初始化和健康检查流程。
+- [x] 新增 `DEPLOY.md`，记录本地部署、知识库初始化和健康检查流程。
 - [x] 新增 `scripts/check_day13_deploy.py`，验证部署文件存在、健康检查配置存在、代码不再包含 `sk-` 密钥。
 
 ### Day13 核心理解

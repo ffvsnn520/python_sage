@@ -123,7 +123,7 @@ class MySQLMemoryStore:
                     """,
                     (session_id, limit),
                 )
-                rows = cursor.fetchall()
+                rows = list(cursor.fetchall())
 
         rows.reverse()
         return [{"role": row["role"], "content": row["content"]} for row in rows]
